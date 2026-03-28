@@ -1,0 +1,15 @@
+version: "1.0"
+name: "System Debugging Environment"
+description: "A real-world environment where an agent acts as a system programmer to fix syntax errors, logic bugs, and integration failures across C++ and Python codebases."
+tags:
+  - "coding"
+  - "debugging"
+  - "c++"
+  - "python"
+tasks:
+  - id: "easy_syntax_error"
+    description: "Fix a missing closing parenthesis in a Python script."
+  - id: "medium_logic_bug"
+    description: "Correct a flawed comparison operator in a C++ sorting algorithm."
+  - id: "hard_integration_failure"
+    description: "Resolve an integration issue where a Python script expects JSON but a C++ engine outputs plain text."
