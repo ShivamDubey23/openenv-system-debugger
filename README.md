@@ -1,3 +1,12 @@
+---
+title: OpenEnv System Debugger
+emoji: 🛠️
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+---
+
 # OpenEnv: System Debugging & Refactoring Environment
 
 ## Environment Description & Motivation
