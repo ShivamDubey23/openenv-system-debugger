@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Dict, Any
 from app.tasks.grader import grade_task
+from fastapi import Request
 
 # Import the strict OpenEnv schemas
 from app.models import Observation, Action, Reward
@@ -32,8 +33,22 @@ async def step(action: Action):
     )
 
 @app.post("/reset", response_model=Observation)
-async def reset(task_name: str = "easy_syntax_error"):
-    # Trigger the environment's internal reset mechanism with the task name
+async def reset(request: Request):
+    """Bulletproof reset endpoint that handles both query params and JSON bodies."""
+    task_name = "easy_syntax_error"
+    
+    # 1. Check if the bot sent it as a query parameter
+    if "task_name" in request.query_params:
+        task_name = request.query_params["task_name"]
+        
+    # 2. Check if the bot sent it inside a JSON POST body
+    try:
+        body = await request.json()
+        if isinstance(body, dict) and "task_name" in body:
+            task_name = body["task_name"]
+    except Exception:
+        pass # No JSON body was provided, which is fine
+        
     return env_instance.reset(task_name)
 
 @app.get("/state", response_model=Observation)
