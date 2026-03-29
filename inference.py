@@ -28,7 +28,7 @@ def run_agent_on_task(task_name: str) -> float:
     print(f"\n{'='*40}\nStarting Task: {task_name}\n{'='*40}")
     
     # Reset the environment for the specific task using JSON to match our new Pydantic schema
-    res = requests.post(f"{API_URL}/reset", json={"task_name": task_name})
+    res = requests.post(f"{API_URL}/reset", json={"task_id": task_name})
     obs = res.json()
     
     done = False
