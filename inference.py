@@ -3,15 +3,23 @@ import json
 import requests
 from openai import OpenAI
 
-# 1. Use Groq API Key
-api_key = os.getenv("GROQ_API_KEY")
-if not api_key:
-    print("WARNING: GROQ_API_KEY environment variable not set.")
+# --- REQUIRED BY META HACKATHON SPEC ---
+# The validation bot will automatically inject these when it tests your code
+api_key = os.getenv("HF_TOKEN")
+base_url = os.getenv("API_BASE_URL")
+model_name = os.getenv("MODEL_NAME")
 
-# 2. Redirect the OpenAI client to Groq's free endpoint
+if not all([api_key, base_url, model_name]):
+    print("WARNING: Missing required environment variables (HF_TOKEN, API_BASE_URL, MODEL_NAME).")
+    # Fallback to local testing defaults if the variables aren't set in your terminal
+    api_key = api_key or os.getenv("GROQ_API_KEY")
+    base_url = base_url or "https://api.groq.com/openai/v1"
+    model_name = model_name or "llama-3.3-70b-versatile"
+
+# Initialize the client using the injected variables
 client = OpenAI(
     api_key=api_key,
-    base_url="https://api.groq.com/openai/v1" 
+    base_url=base_url 
 )
 
 API_URL = "http://127.0.0.1:8000"
@@ -19,8 +27,8 @@ API_URL = "http://127.0.0.1:8000"
 def run_agent_on_task(task_name: str) -> float:
     print(f"\n{'='*40}\nStarting Task: {task_name}\n{'='*40}")
     
-    # Reset the environment for the specific task
-    res = requests.post(f"{API_URL}/reset", params={"task_name": task_name})
+    # Reset the environment for the specific task using JSON to match our new Pydantic schema
+    res = requests.post(f"{API_URL}/reset", json={"task_name": task_name})
     obs = res.json()
     
     done = False
@@ -42,10 +50,10 @@ def run_agent_on_task(task_name: str) -> float:
         step += 1
         messages.append({"role": "user", "content": f"Current Observation: {json.dumps(obs)}"})
         
-       # Call Groq's Llama model
+        # Call the model using the injected MODEL_NAME variable
         try:
             response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile", # <--- CHANGE THIS LINE
+                model=model_name, 
                 messages=messages,
                 temperature=0.0,
             )
