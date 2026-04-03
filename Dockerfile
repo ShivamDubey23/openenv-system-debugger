@@ -1,5 +1,5 @@
 # Use a lightweight Python base image
-FROM python:3.10-slim
+FROM python:3.10
 
 # Set up a new user named "user" with user ID 1000 for Hugging Face Spaces security
 RUN useradd -m -u 1000 user
@@ -23,4 +23,4 @@ COPY --chown=user . .
 EXPOSE 7860
 
 # Command to run the FastAPI application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860"]

@@ -1,9 +1,9 @@
 from fastapi import FastAPI, Query
 from pydantic import BaseModel
 from typing import Dict, Any, Optional
-from app.models import Observation, Action
-from app.environment import env_instance
-from app.tasks.grader import grade_task
+from server.models import Observation, Action
+from server.environment import env_instance
+from server.tasks.grader import grade_task
 
 app = FastAPI(title="Meta OpenEnv - System Debugging Environment")
 
@@ -78,3 +78,8 @@ async def grader(task_name: str = "easy_syntax_error"):
     elif task_name == "hard": task_name = "hard_integration_failure"
     
     return {"score": grade_task(task_name, env_instance.file_system)}
+
+def start():
+    """Entry point for the Meta OpenEnv validator to start the server."""
+    import uvicorn
+    uvicorn.run("server.app:app", host="0.0.0.0", port=8000)
