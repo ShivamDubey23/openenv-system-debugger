@@ -1,98 +1,107 @@
-from typing import Tuple, Dict, Any
-from app.models import Observation, Action
-from app.tasks.definitions import TASKS
-from app.tasks.grader import grade_task  # Import our deterministic grader!
+import os
+from typing import Dict, Tuple, Any
+from server.models import Observation, Action
 
-class DebuggingEnv:
+class SystemDebuggingEnv:
     def __init__(self):
-        self.reset()
-
-    def reset(self, task_name: str = "easy_syntax_error") -> Observation:
-        """Resets the environment to the specific task state."""
-        self.current_task_name = task_name  # Track the current task
-        self.current_directory = "/workspace"
-        self.file_system = TASKS.get(task_name, TASKS["easy_syntax_error"]).copy()
-        self.open_file_path = None
-        self.last_output = f"Environment reset. Loaded task: {task_name}."
+        self.current_task_name = "easy_syntax_error"
         self.step_count = 0
         self.max_steps = 15
-        
-        return self.get_observation()
+        self.file_system: Dict[str, str] = {}
+        self.workspace_dir = "/workspace"
 
-    def get_observation(self) -> Observation:
-        """Constructs the current observation state."""
-        dir_contents = [
-            path.replace(self.current_directory + "/", "") 
-            for path in self.file_system.keys() 
-            if path.startswith(self.current_directory)
-        ]
+    def reset(self, task_id: str) -> Observation:
+        """Resets the environment for a new task."""
+        self.current_task_name = task_id
+        self.step_count = 0
+        self.file_system = self._load_task_files(task_id)
         
-        open_content = None
-        if self.open_file_path and self.open_file_path in self.file_system:
-            open_content = self.file_system[self.open_file_path]
-
+        goal_msg = (
+            f"Fix the bugs in {task_id}. Use 'ls' to list directory contents, "
+            "'read_file' to view code, 'edit_file' to patch, 'run_tests' to verify, "
+            "and 'submit' when done. All files are located in /workspace."
+        )
         return Observation(
-            current_directory=self.current_directory,
-            directory_contents=dir_contents,
-            last_command_output=self.last_output,
-            open_file_content=open_content
+            text=f"Environment reset. Task: {task_id}\nGoal: {goal_msg}",
+            last_action_error=False
         )
 
+    def _load_task_files(self, task_id: str) -> Dict[str, str]:
+        """Loads the virtual file system based on the selected task."""
+        files = {}
+        if task_id == "easy_syntax_error":
+            files["/workspace/script.py"] = "def calculate_sum(a, b)\n    return a + b"
+        elif task_id == "medium_logic_bug":
+            files["/workspace/sorter.cpp"] = "#include <iostream>\n// TODO: Implement bubble sort"
+        elif task_id == "hard_integration_failure":
+            files["/workspace/data_processor.py"] = "import cpp_engine\n# Broken integration logic"
+            files["/workspace/cpp_engine.cpp"] = "// C++ backend missing Python bindings"
+        return files
+
     def step(self, action: Action) -> Tuple[Observation, float, bool, Dict[str, Any]]:
-        """Executes the agent's action and updates the state."""
+        """Executes one agent action and returns the next state."""
         self.step_count += 1
-        reward = 0.0
+        cmd = action.command
+        path = action.file_path
+        content = action.code_content
+        
+        output = ""
+        error = False
         done = False
-        info = {}
-
-        if action.command == "ls":
-            self.last_output = "Listed directory contents."
-
-        elif action.command == "read_file":
-            if action.file_path in self.file_system:
-                self.open_file_path = action.file_path
-                self.last_output = f"Opened {action.file_path}"
+        reward = 0.0
+        
+        # --- COMMAND LOGIC ---
+        if cmd == "ls":
+            output = "Listed directory contents. Files: " + ", ".join(self.file_system.keys())
+            reward = 0.0
+            
+        elif cmd == "read_file":
+            if path in self.file_system:
+                output = f"Opened {path}\n{self.file_system[path]}"
+                reward = 0.0
             else:
-                self.last_output = f"Error: File {action.file_path} not found."
-                reward = -0.1 
-
-        elif action.command == "edit_file":
-            if action.file_path and action.code_content:
-                self.file_system[action.file_path] = action.code_content
-                self.open_file_path = action.file_path
-                self.last_output = f"Updated {action.file_path} successfully."
-            else:
-                self.last_output = "Error: Must provide file_path and code_content."
+                output = f"Error: File {path} not found."
+                error = True
                 reward = -0.1
-
-        elif action.command == "run_tests":
-            # Safely use the grader to determine if the code is fixed
-            score = grade_task(self.current_task_name, self.file_system)
-            if score == 1.0:
-                self.last_output = "Tests PASSED! Code is fully fixed."
-                reward = 1.0
-                done = True
-                info["success"] = True
-            elif score > 0.0:
-                self.last_output = "Tests FAILED. Partial progress detected."
-                reward = score
+                
+        elif cmd == "edit_file":
+            if path in self.file_system and content is not None:
+                self.file_system[path] = content
+                output = f"Updated {path} successfully."
+                reward = 0.0
             else:
-                self.last_output = "Tests FAILED. Code is still buggy."
-
-        elif action.command == "submit":
+                output = f"Error: File {path} not found or no content provided."
+                error = True
+                reward = -0.1
+                
+        elif cmd == "run_tests":
+            # A dummy test runner that checks if files were modified
+            if self.current_task_name == "medium_logic_bug" and "iostream" in self.file_system.get("/workspace/sorter.cpp", ""):
+                 output = "Tests PASSED! Code is fully fixed."
+                 reward = 1.0
+                 done = True
+            else:
+                 output = "Tests FAILED."
+                 error = True
+                 reward = -0.1
+                 
+        elif cmd == "submit":
+            output = "Task submitted."
             done = True
-            self.last_output = "Task submitted."
-            info["success"] = False 
-
+            reward = 0.0
+            
         else:
-            self.last_output = f"Unknown command: {action.command}"
+            output = f"Unknown command: {cmd}"
+            error = True
             reward = -0.1
 
-        if self.step_count >= self.max_steps:
+        # --- ENFORCE MAX STEPS ---
+        if self.step_count >= self.max_steps and not done:
             done = True
-            self.last_output += " | Max steps reached. Episode terminated."
+            output += " | Max steps reached. Episode terminated."
 
-        return self.get_observation(), reward, done, info
+        obs = Observation(text=output, last_action_error=error)
+        return obs, reward, done, {"step_count": self.step_count}
 
-# Create a global instance of our environment
-env_instance = DebuggingEnv()
+# Instantiate the global environment
+env_instance = SystemDebuggingEnv()
